@@ -8,7 +8,7 @@
 const weddingConfig = {
   // 웹 브라우저 탭에 표시되는 기본 정보 (SEO 및 타이틀)
   meta: {
-    title: "허지은 & 김한 결혼 展",
+    title: "허지은&김한 [함께 걷는 시간] 온라인 결혼 전시",
     description: "결혼식 대신 온라인 갤러리에서 결혼 전시를 진행합니다. 우리의 특별한 여정을 함께해 주세요.",
     ogImage: "images/main_cover.png"
   },
