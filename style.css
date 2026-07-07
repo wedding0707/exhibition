@@ -1000,7 +1000,53 @@ button {
   font-size: 0.95rem;
   margin-top: 15px;
   text-align: center;
-  letter-spacing: 0.5px;
+  max-width: 80%;
+}
+
+.lightbox-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.4);
+  border: none;
+  color: #fff;
+  font-size: 2rem;
+  padding: 15px 20px;
+  cursor: pointer;
+  z-index: 2002;
+  border-radius: 50%;
+  transition: background-color 0.2s, transform 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  outline: none;
+}
+
+.lightbox-arrow:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.lightbox-prev {
+  left: 20px;
+}
+
+.lightbox-next {
+  right: 20px;
+}
+
+/* 모바일 좁은 화면 대응 */
+@media (max-width: 768px) {
+  .lightbox-arrow {
+    padding: 10px 14px;
+    font-size: 1.5rem;
+  }
+  .lightbox-prev {
+    left: 10px;
+  }
+  .lightbox-next {
+    right: 10px;
+  }
 }
 
 /* ==========================================================================

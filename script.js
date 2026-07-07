@@ -5,6 +5,9 @@
  * 방문자 카운팅, 방명록 등록/삭제, 사진 확대 기능 등을 제어합니다.
  */
 
+let lightboxImages = [];
+let lightboxCurrentIndex = 0;
+
 document.addEventListener("DOMContentLoaded", () => {
   // config.js 불러오기 검증
   if (typeof weddingConfig === 'undefined') {
@@ -377,7 +380,14 @@ function renderPromiseRoom(promiseConfig) {
         accordionContainer.querySelectorAll(".accordion-btn").forEach(btn => {
           if (btn !== button && btn.classList.contains("active")) {
             btn.classList.remove("active");
-            btn.nextElementSibling.style.maxHeight = null;
+            const closingPanel = btn.nextElementSibling;
+            if (closingPanel) {
+              closingPanel.style.maxHeight = null;
+              const gallery = closingPanel.querySelector(".accordion-gallery");
+              if (gallery) {
+                gallery.scrollLeft = 0;
+              }
+            }
           }
         });
         
@@ -386,6 +396,33 @@ function renderPromiseRoom(promiseConfig) {
           panel.style.maxHeight = null;
         } else {
           panel.style.maxHeight = panel.scrollHeight + "px";
+          // 아코디언이 열릴 때 가로 스크롤 갤러리를 맨 처음 위치(0)로 리셋
+          const gallery = panel.querySelector(".accordion-gallery");
+          if (gallery) {
+            gallery.scrollLeft = 0;
+          }
+
+          // 바닥 한계선(Scroll Boundary Limit)에 막혀 스크롤이 도중에 락 걸리는 현상을 해결하기 위해 
+          // 아코디언 컨테이너 하단에 임시로 가상의 스크롤 가용 공간(60vh)을 즉시 부여
+          accordionContainer.style.paddingBottom = "60vh";
+          accordionContainer.style.transition = "padding-bottom 0.3s ease";
+
+          // 아코디언 질문이 열릴 때 화면 스크롤이 해당 질문의 상단으로 부드럽게 자동 이동 (상단 고정 내비게이션 바 높이 고려)
+          setTimeout(() => {
+            const headerOffset = 80;
+            const absoluteTop = getAbsoluteTop(accordionItem);
+            const offsetPosition = absoluteTop - headerOffset;
+            
+            window.scrollTo({
+              top: offsetPosition,
+              behavior: "smooth"
+            });
+            
+            // 스크롤이 부드럽게 완료되는 시점(600ms 뒤)에 추가했던 가상 하단 여백 공간을 서서히 원상복구
+            setTimeout(() => {
+              accordionContainer.style.paddingBottom = "0px";
+            }, 600);
+          }, 320);
         }
       });
       
@@ -432,7 +469,7 @@ function renderCongratsRoom(congratsConfig) {
   const container = document.getElementById("congratsImages");
   if (container && congratsConfig.images) {
     container.innerHTML = "";
-    congratsConfig.images.forEach(img => {
+    congratsConfig.images.forEach((img, index) => {
       const item = document.createElement("div");
       item.className = "congrats-image-item";
       item.innerHTML = `
@@ -442,7 +479,7 @@ function renderCongratsRoom(congratsConfig) {
 
       // 이미지 클릭 시 확대(라이트박스) 이벤트 바인딩
       item.addEventListener("click", () => {
-        openLightbox(img.src, img.caption);
+        openLightbox(congratsConfig.images, index);
       });
 
       container.appendChild(item);
@@ -499,7 +536,7 @@ function renderOfflineRoom(offlineConfig) {
   const container = document.getElementById("offlineGallery");
   if (container && offlineConfig.images) {
     container.innerHTML = "";
-    offlineConfig.images.forEach(img => {
+    offlineConfig.images.forEach((img, index) => {
       const item = document.createElement("div");
       item.className = "offline-gallery-item";
       item.innerHTML = `
@@ -508,7 +545,7 @@ function renderOfflineRoom(offlineConfig) {
       `;
 
       item.addEventListener("click", () => {
-        openLightbox(img.src, img.caption);
+        openLightbox(offlineConfig.images, index);
       });
 
       container.appendChild(item);
@@ -682,18 +719,45 @@ function showToast(message) {
 }
 
 /**
- * 갤러리 이미지 라이트박스 열기
+ * 갤러리 이미지 라이트박스 열기 (배열과 시작 인덱스를 인자로 가짐)
  */
-function openLightbox(src, caption) {
+function openLightbox(imagesArray, startIndex) {
   const lightbox = document.getElementById("lightbox");
+  if (!lightbox || !imagesArray || imagesArray.length === 0) return;
+
+  // 단일 이미지 문자열 경로가 들어왔을 때의 예외 처리(하이브리드 호환성)
+  if (typeof imagesArray === "string") {
+    lightboxImages = [{ src: imagesArray, caption: startIndex || "" }];
+    lightboxCurrentIndex = 0;
+  } else {
+    lightboxImages = imagesArray;
+    lightboxCurrentIndex = startIndex || 0;
+  }
+
+  updateLightboxImage();
+  lightbox.classList.add("active-lightbox");
+}
+
+/**
+ * 라이트박스 내부의 이미지 소스 및 캡션, 이동 화살표 상태 동적 업데이트
+ */
+function updateLightboxImage() {
   const lightboxImg = document.getElementById("lightboxImg");
   const lightboxCaption = document.getElementById("lightboxCaption");
-  
-  if (lightbox && lightboxImg && lightboxCaption) {
-    lightboxImg.src = src;
-    lightboxCaption.textContent = caption || "";
-    lightbox.classList.add("active-lightbox");
-  }
+  const prevBtn = document.getElementById("lightboxPrevBtn");
+  const nextBtn = document.getElementById("lightboxNextBtn");
+
+  if (!lightboxImg || !lightboxCaption) return;
+
+  const current = lightboxImages[lightboxCurrentIndex];
+  if (!current) return;
+
+  lightboxImg.src = current.src;
+  lightboxCaption.textContent = current.caption || "";
+
+  // 첫 장이거나 마지막 장일 때 화살표 가시성(display: none) 제어
+  if (prevBtn) prevBtn.style.display = lightboxCurrentIndex > 0 ? "flex" : "none";
+  if (nextBtn) nextBtn.style.display = lightboxCurrentIndex < lightboxImages.length - 1 ? "flex" : "none";
 }
 
 /**
@@ -799,6 +863,16 @@ function escapeHtml(str) {
             .replace(/'/g, "&#039;");
 }
 
+// 요소의 문서 기준 절대 Y좌표를 획득하는 함수
+function getAbsoluteTop(element) {
+  let top = 0;
+  while (element) {
+    top += element.offsetTop;
+    element = element.offsetParent;
+  }
+  return top;
+}
+
 // 유튜브 및 로컬 비디오 마크업 동적 생성 헬퍼 함수
 function createVideoMarkup(videoObj) {
   if (!videoObj) return "";
@@ -825,6 +899,18 @@ function switchRoom(roomName) {
   if (index === -1) return;
 
   currentRoomIndex = index;
+  
+  // 0. 재생 중인 유튜브(iframe) 및 로컬 비디오 일시정지
+  document.querySelectorAll(".room-panel iframe").forEach(iframe => {
+    const src = iframe.getAttribute("src");
+    if (src) {
+      iframe.setAttribute("src", "");
+      iframe.setAttribute("src", src);
+    }
+  });
+  document.querySelectorAll(".room-panel video").forEach(video => {
+    video.pause();
+  });
   
   // 1. 모든 룸 콘텐츠 숨기기 및 타겟 룸 활성화
   document.querySelectorAll(".room-panel").forEach(panel => {
@@ -991,12 +1077,86 @@ function registerEventListeners() {
   }
 
   // [Room 3: Gallery - 라이트박스 닫기]
+  // [Room 3: Gallery - 라이트박스 제어 및 슬라이더]
   const lightboxCloseBtn = document.getElementById("lightboxCloseBtn");
   const lightbox = document.getElementById("lightbox");
+  const lightboxPrevBtn = document.getElementById("lightboxPrevBtn");
+  const lightboxNextBtn = document.getElementById("lightboxNextBtn");
+
   if (lightboxCloseBtn) lightboxCloseBtn.addEventListener("click", closeLightbox);
+  
   if (lightbox) {
+    // 배경 클릭 시 닫기
     lightbox.addEventListener("click", (e) => {
-      if (e.target === lightbox || e.target.id === "lightboxImg") {
+      if (e.target === lightbox) {
+        closeLightbox();
+      }
+    });
+
+    // 이전 버튼 클릭
+    if (lightboxPrevBtn) {
+      lightboxPrevBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (lightboxCurrentIndex > 0) {
+          lightboxCurrentIndex--;
+          updateLightboxImage();
+        }
+      });
+    }
+
+    // 다음 버튼 클릭
+    if (lightboxNextBtn) {
+      lightboxNextBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (lightboxCurrentIndex < lightboxImages.length - 1) {
+          lightboxCurrentIndex++;
+          updateLightboxImage();
+        }
+      });
+    }
+
+    // 모바일 터치 스와이프 제스처 바인딩
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    lightbox.addEventListener("touchstart", (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    lightbox.addEventListener("touchend", (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      
+      const threshold = 50; // 스와이프 감지 임계값 (px)
+      if (touchStartX - touchEndX > threshold) {
+        // 왼쪽 스와이프 (다음 이미지)
+        if (lightboxCurrentIndex < lightboxImages.length - 1) {
+          lightboxCurrentIndex++;
+          updateLightboxImage();
+        }
+      } else if (touchEndX - touchStartX > threshold) {
+        // 오른쪽 스와이프 (이전 이미지)
+        if (lightboxCurrentIndex > 0) {
+          lightboxCurrentIndex--;
+          updateLightboxImage();
+        }
+      }
+    }, { passive: true });
+
+    // 키보드 좌우 화살표/ESC 키 바인딩
+    document.addEventListener("keydown", (e) => {
+      if (!lightbox.classList.contains("active-lightbox")) return;
+
+      if (e.key === "ArrowLeft") {
+        if (lightboxCurrentIndex > 0) {
+          lightboxCurrentIndex--;
+          updateLightboxImage();
+        }
+      } else if (e.key === "ArrowRight") {
+        if (lightboxCurrentIndex < lightboxImages.length - 1) {
+          lightboxCurrentIndex++;
+          updateLightboxImage();
+        }
+      } else if (e.key === "Escape") {
         closeLightbox();
       }
     });
