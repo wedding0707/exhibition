@@ -535,10 +535,10 @@ function initVisitorCounter() {
   if (!savedDate || savedDate !== todayStr) {
     localStorage.setItem(todayKey, todayStr);
     
-    // 신규 방문 시 자연스럽게 보이도록 랜덤 시드값으로 시작
+    // 신규 방문 시 정직하게 1부터 시작
     if (totalCount === 0) {
-      todayCount = Math.floor(Math.random() * 30) + 15;
-      totalCount = Math.floor(Math.random() * 200) + 380;
+      todayCount = 1;
+      totalCount = 1;
     } else {
       totalCount = totalCount + 1;
       todayCount = 1;
@@ -712,9 +712,7 @@ function closeLightbox() {
 const GUESTBOOK_STORAGE_KEY = "wedding_guestbook_messages";
 
 function getGuestbookData() {
-  return JSON.parse(localStorage.getItem(GUESTBOOK_STORAGE_KEY)) || [
-    { id: 1, name: "축하객", message: "두 사람의 앞날에 늘 축복과 사랑이 가득하기를 기원합니다. 결혼 축하드립니다!", date: "2026.06.03", pw: "1234" }
-  ];
+  return JSON.parse(localStorage.getItem(GUESTBOOK_STORAGE_KEY)) || [];
 }
 
 function renderGuestbook() {
