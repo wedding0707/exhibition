@@ -17,7 +17,7 @@ const firebaseConfig = {
   messagingSenderId: "1055761893137",
   appId: "1:1055761893137:web:4377a69721f81036cc2eb0",
   measurementId: "G-EQB9062C86",
-  databaseURL: "https://hanjieun-abcaa-default-rtdb.asia-southeast1.firebasedatabase.app" // 싱가포르 리전 우선 매핑
+  databaseURL: "https://hanjieun-abcaa-default-rtdb.firebaseio.com" // 사용자의 미국 리전 데이터베이스 주소로 고정
 };
 
 let database;
@@ -26,16 +26,13 @@ let guestbookRef;
 function initFirebase() {
   if (typeof firebase !== 'undefined') {
     try {
-      firebase.initializeApp(firebaseConfig);
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
       database = firebase.database();
       guestbookRef = database.ref("guestbook");
     } catch (e) {
-      console.warn("Firebase initialization failed with Singapore Region. Trying US Region...", e);
-      // 싱가포르가 아니면 미국 주소로 fallback 시도
-      firebaseConfig.databaseURL = "https://hanjieun-abcaa-default-rtdb.firebaseio.com";
-      firebase.initializeApp(firebaseConfig);
-      database = firebase.database();
-      guestbookRef = database.ref("guestbook");
+      console.error("Firebase initialization failed:", e);
     }
   }
 }
