@@ -366,8 +366,7 @@ function renderPromiseRoom(promiseConfig) {
         const imgEls = panel.querySelectorAll(".accordion-gallery-item");
         imgEls.forEach((el, index) => {
           el.addEventListener("click", () => {
-            const imgData = item.images[index];
-            openLightbox(imgData.src, imgData.caption);
+            openLightbox(item.images, index);
           });
         });
       }
@@ -382,7 +381,13 @@ function renderPromiseRoom(promiseConfig) {
             btn.classList.remove("active");
             const closingPanel = btn.nextElementSibling;
             if (closingPanel) {
+              // transition을 해제하여 타 아코디언은 화면 덜컹거림 없이 즉시 0px로 접히도록 조치
+              closingPanel.style.transition = "none";
               closingPanel.style.maxHeight = null;
+              // 리플로우를 일으켜 transition 속성을 다음 열림을 위해 복구
+              closingPanel.offsetHeight;
+              closingPanel.style.transition = "";
+
               const gallery = closingPanel.querySelector(".accordion-gallery");
               if (gallery) {
                 gallery.scrollLeft = 0;
@@ -408,6 +413,7 @@ function renderPromiseRoom(promiseConfig) {
           accordionContainer.style.transition = "padding-bottom 0.3s ease";
 
           // 아코디언 질문이 열릴 때 화면 스크롤이 해당 질문의 상단으로 부드럽게 자동 이동 (상단 고정 내비게이션 바 높이 고려)
+          // 타 아코디언이 즉시 닫혔으므로, 50ms 만에 오차 없는 절대 좌표로 신속하고 부드럽게 스크롤을 시동
           setTimeout(() => {
             const headerOffset = 80;
             const absoluteTop = getAbsoluteTop(accordionItem);
@@ -422,7 +428,7 @@ function renderPromiseRoom(promiseConfig) {
             setTimeout(() => {
               accordionContainer.style.paddingBottom = "0px";
             }, 600);
-          }, 320);
+          }, 50);
         }
       });
       
