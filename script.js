@@ -8,7 +8,42 @@
 let lightboxImages = [];
 let lightboxCurrentIndex = 0;
 
+// Firebase Config
+const firebaseConfig = {
+  apiKey: "AIzaSyCFScZfCVMZf87JqPWufzo0u8a5oc6kBOY",
+  authDomain: "hanjieun-abcaa.firebaseapp.com",
+  projectId: "hanjieun-abcaa",
+  storageBucket: "hanjieun-abcaa.firebasestorage.app",
+  messagingSenderId: "1055761893137",
+  appId: "1:1055761893137:web:4377a69721f81036cc2eb0",
+  measurementId: "G-EQB9062C86",
+  databaseURL: "https://hanjieun-abcaa-default-rtdb.asia-southeast1.firebasedatabase.app" // 싱가포르 리전 우선 매핑
+};
+
+let database;
+let guestbookRef;
+
+function initFirebase() {
+  if (typeof firebase !== 'undefined') {
+    try {
+      firebase.initializeApp(firebaseConfig);
+      database = firebase.database();
+      guestbookRef = database.ref("guestbook");
+    } catch (e) {
+      console.warn("Firebase initialization failed with Singapore Region. Trying US Region...", e);
+      // 싱가포르가 아니면 미국 주소로 fallback 시도
+      firebaseConfig.databaseURL = "https://hanjieun-abcaa-default-rtdb.firebaseio.com";
+      firebase.initializeApp(firebaseConfig);
+      database = firebase.database();
+      guestbookRef = database.ref("guestbook");
+    }
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  // 0. 파이어베이스 초기화
+  initFirebase();
+
   // config.js 불러오기 검증
   if (typeof weddingConfig === 'undefined') {
     console.error("config.js 파일이 올바르게 로드되지 않았습니다. 파일 경로를 확인해 주세요.");
@@ -789,14 +824,47 @@ function renderGuestbook() {
   const listContainer = document.getElementById("guestbookList");
   if (!listContainer) return;
 
-  const data = getGuestbookData();
-  listContainer.innerHTML = "";
-
-  if (data.length === 0) {
-    listContainer.innerHTML = `<p style="text-align:center; color:#999; font-size:0.85rem; padding: 2rem 0;">첫 번째 따뜻한 축하 메시지를 남겨보세요.</p>`;
+  // 파이어베이스가 비활성화되어 있는 경우 구형 로컬 스토리지로 복구
+  if (typeof firebase === 'undefined' || !guestbookRef) {
+    const data = getGuestbookData();
+    listContainer.innerHTML = "";
+    if (data.length === 0) {
+      listContainer.innerHTML = `<p style="text-align:center; color:#999; font-size:0.85rem; padding: 2rem 0;">첫 번째 따뜻한 축하 메시지를 남겨보세요.</p>`;
+      return;
+    }
+    renderDataList(data, listContainer, false);
     return;
   }
 
+  // 파이어베이스 연동 실시간 데이터 리스너 등록
+  guestbookRef.off();
+  guestbookRef.on("value", (snapshot) => {
+    const dataObj = snapshot.val();
+    listContainer.innerHTML = "";
+
+    if (!dataObj) {
+      listContainer.innerHTML = `<p style="text-align:center; color:#999; font-size:0.85rem; padding: 2rem 0;">첫 번째 따뜻한 축하 메시지를 남겨보세요.</p>`;
+      return;
+    }
+
+    const data = [];
+    for (let key in dataObj) {
+      data.push({
+        id: key, // 파이어베이스 Push Key
+        name: dataObj[key].name,
+        pw: dataObj[key].pw,
+        message: dataObj[key].message,
+        date: dataObj[key].date
+      });
+    }
+
+    // 최신 글이 위로 오도록 정렬
+    data.reverse();
+    renderDataList(data, listContainer, true);
+  });
+}
+
+function renderDataList(data, listContainer, isFirebase) {
   data.forEach(item => {
     const card = document.createElement("div");
     card.className = "guestbook-card";
@@ -814,8 +882,8 @@ function renderGuestbook() {
 
     // 삭제 버튼 동작 설정
     card.querySelector(".guestbook-delete-btn").addEventListener("click", (e) => {
-      const id = parseInt(e.currentTarget.getAttribute("data-id"));
-      deleteGuestbookMessage(id);
+      const id = e.currentTarget.getAttribute("data-id");
+      deleteGuestbookMessage(id, isFirebase);
     });
 
     listContainer.appendChild(card);
@@ -823,39 +891,56 @@ function renderGuestbook() {
 }
 
 function addGuestbookMessage(name, pw, message) {
-  const data = getGuestbookData();
   const now = new Date();
   const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
 
   const newMsg = {
-    id: Date.now(),
     name: name,
     pw: pw,
     message: message,
     date: dateStr
   };
 
-  data.unshift(newMsg); // 최신 글이 맨 위로
-  localStorage.setItem(GUESTBOOK_STORAGE_KEY, JSON.stringify(data));
-  renderGuestbook();
+  if (typeof firebase !== 'undefined' && guestbookRef) {
+    guestbookRef.push(newMsg);
+  } else {
+    const data = getGuestbookData();
+    newMsg.id = Date.now();
+    data.unshift(newMsg); // 최신 글이 맨 위로
+    localStorage.setItem(GUESTBOOK_STORAGE_KEY, JSON.stringify(data));
+    renderGuestbook();
+  }
 }
 
-function deleteGuestbookMessage(id) {
-  const data = getGuestbookData();
-  const target = data.find(item => item.id === id);
-  if (!target) return;
-
+function deleteGuestbookMessage(id, isFirebase) {
   // 비밀번호 확인 팝업
   const userPw = prompt("등록 시 설정한 비밀번호를 입력해 주세요:");
   if (userPw === null) return; // 취소
 
-  if (userPw === target.pw) {
-    const filtered = data.filter(item => item.id !== id);
-    localStorage.setItem(GUESTBOOK_STORAGE_KEY, JSON.stringify(filtered));
-    renderGuestbook();
-    showToast("방명록이 삭제되었습니다.");
+  if (isFirebase && typeof firebase !== 'undefined' && guestbookRef) {
+    guestbookRef.child(id).once("value", (snapshot) => {
+      const val = snapshot.val();
+      if (val && val.pw === userPw) {
+        guestbookRef.child(id).remove();
+        showToast("방명록이 삭제되었습니다.");
+      } else {
+        alert("비밀번호가 일치하지 않습니다.");
+      }
+    });
   } else {
-    alert("비밀번호가 일치하지 않습니다.");
+    const data = getGuestbookData();
+    const numericId = parseInt(id);
+    const target = data.find(item => item.id === numericId);
+    if (!target) return;
+
+    if (userPw === target.pw) {
+      const filtered = data.filter(item => item.id !== numericId);
+      localStorage.setItem(GUESTBOOK_STORAGE_KEY, JSON.stringify(filtered));
+      renderGuestbook();
+      showToast("방명록이 삭제되었습니다.");
+    } else {
+      alert("비밀번호가 일치하지 않습니다.");
+    }
   }
 }
 
